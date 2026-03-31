@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema Asistencia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}
+body{background:#EEF2F7;color:#1A1A1A;}
+.topbar{background:#1a5276;color:#fff;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;}
+.topbar h1{font-size:15px;font-weight:700;}
+.sub{font-size:11px;opacity:.7;margin-top:2px;}
+.tabs{display:flex;background:#fff;border-bottom:3px solid #1a5276;padding:0 12px;overflow-x:auto;}
+.tab{padding:11px 16px;cursor:pointer;font-size:13px;font-weight:600;color:#666;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap;}
+.tab.active{color:#1a5276;border-bottom-color:#1a5276;}
+.tab:hover{color:#1a5276;}
+.panel{display:none;padding:14px;max-width:980px;margin:0 auto;}
+.panel.active{display:block;}
+.card{background:#fff;border:1px solid #D8E2F0;border-radius:10px;padding:16px;margin-bottom:14px;}
+.card h2{font-size:14px;font-weight:700;color:#1a5276;margin-bottom:12px;}
+.row3{display:grid;grid-template-columns:1fr 140px 140px 110px;gap:10px;margin-bottom:12px;align-items:end;}
+label{display:block;font-size:11px;color:#555;margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
+input[type=time],input[type=text],input[type=tel],input[type=date],input[type=number],select{width:100%;padding:8px 11px;border:1.5px solid #D0D9E8;border-radius:7px;font-size:13px;background:#fff;}
+input:focus,select:focus{outline:none;border-color:#1a5276;}
+.bw{position:relative;}
+.bi{width:100%;padding:8px 11px;border:1.5px solid #D0D9E8;border-radius:7px;font-size:13px;}
+.bi:focus{outline:none;border-color:#1a5276;}
+.dd{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #1a5276;border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;z-index:999;display:none;box-shadow:0 6px 16px rgba(0,0,0,.12);}
+.dd.show{display:block;}
+.di{padding:9px 13px;cursor:pointer;font-size:13px;border-bottom:1px solid #F0F4F9;}
+.di:hover{background:#E8EEF8;}
+.di .cod{font-weight:700;color:#1a5276;margin-right:5px;}
+.di .tel{font-size:11px;color:#aaa;float:right;}
+.di.nor{color:#aaa;cursor:default;}
+.sbadge{display:inline-flex;align-items:center;gap:7px;background:#E8EEF8;border:1.5px solid #A3BBDF;border-radius:99px;padding:4px 12px;font-size:13px;font-weight:700;color:#1a5276;margin-bottom:7px;}
+.sbadge button{background:none;border:none;cursor:pointer;color:#1a5276;font-size:15px;}
+.btn{width:100%;padding:10px;font-size:14px;font-weight:700;border:none;border-radius:8px;cursor:pointer;transition:opacity .15s;}
+.btn:hover{opacity:.88;}
+.btn-azul{background:#1a5276;color:#fff;}
+.btn-wa{background:#25D366;color:#fff;}
+.btn-wa:disabled,.btn-azul:disabled{background:#C5D0E0;cursor:not-allowed;opacity:1;}
+.btn-naranja{background:#E67E22;color:#fff;}
+.btn-gris{background:#EEF2F7;color:#444;border:1px solid #D0D9E8;}
+.btn-sm{width:auto;padding:5px 12px;font-size:12px;}
+.btn-edit{background:#FEF9E7;border:1px solid #F39C12;color:#7D6608;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:700;}
+.btn-del{background:#FADBD8;border:1px solid #E74C3C;color:#7B241C;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:700;}
+.preview{background:#E8F5E9;border:1.5px solid #81C784;border-radius:8px;padding:12px;font-size:13px;color:#1B5E20;white-space:pre-line;line-height:1.6;margin:10px 0;display:none;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+.stat{background:#fff;border:1px solid #D8E2F0;border-radius:8px;padding:10px;text-align:center;}
+.stat-n{font-size:22px;font-weight:700;}
+.stat-l{font-size:11px;color:#888;margin-top:2px;}
+.lista{max-height:300px;overflow-y:auto;}
+.item{display:flex;align-items:center;gap:7px;padding:8px 6px;border-bottom:1px solid #F0F4F9;font-size:13px;}
+.item:last-child{border-bottom:none;}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.dot-g{background:#27AE60;}.dot-r{background:#E74C3C;}.dot-y{background:#F39C12;}.dot-gr{background:#BDC3C7;}
+.nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.pill{font-size:11px;padding:2px 7px;border-radius:99px;font-weight:600;white-space:nowrap;}
+.pill-ci{background:#D5F5E3;color:#1A5C2A;}
+.pill-co{background:#FADBD8;color:#7B241C;}
+.pill-pend{background:#F0F4F9;color:#666;}
+.pill-warn{background:#FEF9E7;color:#7D6608;}
+.pill-ok{background:#D5F5E3;color:#1A5C2A;}
+.pill-no{background:#FADBD8;color:#7B241C;}
+.pill-uni{background:#D6EAF8;color:#1a5276;}
+.pill-nouni{background:#FADBD8;color:#7B241C;}
+.pill-extra{background:#D5F5E3;color:#1A5C2A;}
+.pill-falta{background:#FADBD8;color:#7B241C;}
+.falt-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.falt-box{background:#FEF9E7;border:1.5px solid #F39C12;border-radius:10px;padding:12px;}
+.falt-box.ok{background:#D5F5E3;border-color:#27AE60;}
+.falt-box h3{font-size:13px;font-weight:700;margin-bottom:3px;}
+.falt-box .sub2{font-size:12px;margin-bottom:8px;}
+.co-result{border-radius:10px;padding:14px;margin-top:12px;display:none;text-align:center;}
+.co-ok{background:#D5F5E3;border:1.5px solid #27AE60;color:#1A5C2A;}
+.co-no{background:#FADBD8;border:1.5px solid #E74C3C;color:#7B241C;}
+.co-result .big{font-size:26px;font-weight:700;margin:5px 0;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{background:#1a5276;color:#fff;padding:8px 5px;text-align:center;}
+th:first-child{text-align:left;padding-left:10px;}
+td{padding:6px 5px;text-align:center;border-bottom:1px solid #F0F4F9;}
+td:first-child{text-align:left;padding-left:10px;font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+tr:hover td{background:#F5F8FC;}
+.tci{background:#D5F5E3;color:#1A5C2A;border-radius:4px;padding:2px 5px;}
+.tco{background:#FADBD8;color:#7B241C;border-radius:4px;padding:2px 5px;}
+.cell-hoy{background:#FEF9E7;color:#7D6608;border-radius:4px;padding:2px 5px;}
+.cell-falta{background:#F0F4F9;color:#aaa;border-radius:4px;padding:2px 5px;font-size:10px;}
+.extra-card{border-radius:10px;padding:14px;margin-bottom:10px;border:1.5px solid #D8E2F0;background:#fff;}
+.extra-card.positivo{border-color:#27AE60;background:#f0fdf4;}
+.extra-card.negativo{border-color:#E74C3C;background:#fff5f5;}
+.extra-nombre{font-size:14px;font-weight:700;color:#1a5276;margin-bottom:8px;}
+.extra-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;}
+.extra-stat{background:#EEF2F7;border-radius:8px;padding:8px;text-align:center;}
+.extra-stat .n{font-size:18px;font-weight:700;}
+.extra-stat .l{font-size:10px;color:#888;margin-top:2px;}
+.pago-box{background:#1a5276;color:#fff;border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center;}
+.pago-box .total{font-size:18px;font-weight:700;}
+.sem-sel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.sem-sel select{width:auto;min-width:190px;}
+.prow{display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap;}
+.prow input{flex:1;min-width:80px;}
+.prow button{background:none;border:1px solid #D0D9E8;border-radius:6px;padding:5px 8px;cursor:pointer;color:#888;font-size:12px;}
+.conf{font-size:13px;font-weight:700;color:#27AE60;text-align:center;padding:5px 0;display:none;}
+.badge-live{background:#E74C3C;color:#fff;font-size:10px;padding:2px 7px;border-radius:99px;margin-left:5px;}
+.wa-btn{display:inline-block;padding:3px 9px;background:#25D366;color:#fff;border-radius:6px;text-decoration:none;font-size:11px;font-weight:700;white-space:nowrap;}
+.search{width:100%;padding:7px 11px;border:1.5px solid #D0D9E8;border-radius:7px;font-size:13px;margin-bottom:10px;}
+.fecha-sel{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.fecha-sel label{margin:0;font-size:12px;color:#555;}
+.fecha-sel input{width:auto;padding:5px 10px;font-size:12px;}
+.modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:20px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+.modal h3{font-size:14px;font-weight:700;color:#1a5276;margin-bottom:14px;}
+.mrow{margin-bottom:10px;}
+.mbtns{display:flex;gap:8px;margin-top:14px;}
+.uni-toggle{display:flex;gap:8px;margin-top:4px;}
+.uni-btn{flex:1;padding:8px;border:2px solid #D0D9E8;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;text-align:center;background:#fff;transition:all .15s;}
+.uni-btn.si.active{background:#D6EAF8;border-color:#1a5276;color:#1a5276;}
+.uni-btn.no.active{background:#FADBD8;border-color:#E74C3C;color:#7B241C;}
+@media(max-width:600px){
+  .row3{grid-template-columns:1fr 1fr;}
+  .stats,.falt-grid,.extra-grid{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div><h1>SISTEMA ASISTENCIA</h1><div class="sub" id="estado-top">Conectando...</div></div>
+  <div style="font-size:12px;text-align:right;" id="fecha-top"></div>
+</div>
+<div class="tabs">
+  <div class="tab active" onclick="setTab('checkin',this)">Check In</div>
+  <div class="tab"        onclick="setTab('checkout',this)">Check Out</div>
+  <div class="tab"        onclick="setTab('faltantes',this)">Faltantes <span id="badge-falt" class="badge-live" style="display:none">0</span></div>
+  <div class="tab"        onclick="setTab('semana',this)">Semana</div>
+  <div class="tab"        onclick="setTab('extras',this)">Horas Extras</div>
+  <div class="tab"        onclick="setTab('resumen',this)">Resumen</div>
+  <div class="tab"        onclick="setTab('empleados',this)">Empleados</div>
+</div>
+
+<!-- CHECK IN -->
+<div id="tab-checkin" class="panel active">
+  <div class="card">
+    <h2>Registrar Asistencia</h2>
+    <div class="row3">
+      <div>
+        <label>Empleado</label>
+        <div id="badge-ci" style="display:none;"><div class="sbadge"><span id="nom-ci"></span><button onclick="limpiarCI()">✕</button></div></div>
+        <div class="bw" id="wrap-ci">
+          <input type="text" class="bi" id="busca-ci" placeholder="Escribe nombre..." oninput="filtrarE('ci')" onfocus="mostrarD('ci')" autocomplete="off"/>
+          <div class="dd" id="drop-ci"></div>
+        </div>
+      </div>
+      <div><label>Fecha</label><input type="date" id="fecha-ci" onchange="onFCI()"/></div>
+      <div><label>Hora entrada</label><input type="time" id="hora-ci" onchange="actuPreviewCI()"/></div>
+      <div>
+        <label>Uniforme</label>
+        <div class="uni-toggle">
+          <div class="uni-btn si" id="uni-si" onclick="setUni(true)">✅ Sí</div>
+          <div class="uni-btn no" id="uni-no" onclick="setUni(false)">❌ No</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-wa" id="btn-ci" style="display:none;margin-top:10px;" onclick="marcarCI()">Registrar Asistencia</button>
+    <div class="conf" id="conf-ci"></div>
+  </div>
+  <div class="fecha-sel">
+    <label>Resumen del día:</label>
+    <input type="date" id="fs-ci" onchange="actStats();renderHoy()"/>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-n" id="s-ci" style="color:#27AE60">0</div><div class="stat-l">Con entrada</div></div>
+    <div class="stat"><div class="stat-n" id="s-co" style="color:#E74C3C">0</div><div class="stat-l">Con salida</div></div>
+    <div class="stat"><div class="stat-n" id="s-pend" style="color:#F39C12">0</div><div class="stat-l">Sin entrada</div></div>
+    <div class="stat"><div class="stat-n" id="s-tot" style="color:#1a5276">0</div><div class="stat-l">Total</div></div>
+  </div>
+  <div class="card">
+    <h2>Registro del día <span id="lbl-f-reg" style="font-weight:400;font-size:12px;color:#888;"></span></h2>
+    <input type="text" class="search" placeholder="Buscar empleado..." oninput="filtrarHoy(this.value)">
+    <div class="lista" id="lista-hoy"></div>
+  </div>
+</div>
+
+<!-- CHECK OUT -->
+<div id="tab-checkout" class="panel">
+  <div class="card">
+    <h2>Registrar Salida</h2>
+    <div class="row3" style="grid-template-columns:1fr 140px 140px;">
+      <div>
+        <label>Empleado (con entrada)</label>
+        <div id="badge-co" style="display:none;"><div class="sbadge"><span id="nom-co"></span><button onclick="limpiarCO()">✕</button></div></div>
+        <div class="bw" id="wrap-co">
+          <input type="text" class="bi" id="busca-co" placeholder="Escribe nombre..." oninput="filtrarE('co')" onfocus="mostrarD('co')" autocomplete="off"/>
+          <div class="dd" id="drop-co"></div>
+        </div>
+      </div>
+      <div><label>Fecha</label><input type="date" id="fecha-co" onchange="onFCO()"/></div>
+      <div><label>Hora salida</label><input type="time" id="hora-co"/></div>
+    </div>
+    <button class="btn btn-azul" id="btn-co" onclick="regCO()" disabled>Registrar Salida</button>
+    <div class="co-result" id="co-result"></div>
+    <div class="conf" id="conf-co"></div>
+  </div>
+  <div class="fecha-sel">
+    <label>Resumen del día:</label>
+    <input type="date" id="fs-co" onchange="actStatsCO();renderFaltCO()"/>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-n" id="co-ci" style="color:#27AE60">0</div><div class="stat-l">Con entrada</div></div>
+    <div class="stat"><div class="stat-n" id="co-co" style="color:#E74C3C">0</div><div class="stat-l">Con salida</div></div>
+    <div class="stat"><div class="stat-n" id="co-pco" style="color:#F39C12">0</div><div class="stat-l">Sin salida</div></div>
+    <div class="stat"><div class="stat-n" id="co-cum" style="color:#27AE60">0</div><div class="stat-l">Jornada completa</div></div>
+  </div>
+  <div class="falt-grid">
+    <div class="falt-box" id="fci-box"><h3 id="fci-tit">Sin entrada</h3><div class="sub2" id="fci-sub"></div><div class="lista" id="fci-lista" style="max-height:180px;"></div></div>
+    <div class="falt-box" id="fco-box"><h3 id="fco-tit">Sin salida</h3><div class="sub2" id="fco-sub"></div><div class="lista" id="fco-lista" style="max-height:180px;"></div></div>
+  </div>
+  <div class="card"><h2>Salidas registradas hoy</h2><div class="lista" id="lista-co"></div></div>
+</div>
+
+<!-- FALTANTES -->
+<div id="tab-faltantes" class="panel">
+  <div class="fecha-sel"><label>Ver día:</label><input type="date" id="fecha-falt" onchange="renderFalt()"/></div>
+  <div class="falt-grid">
+    <div class="falt-box" id="fb-ci">
+      <h3 id="ft-ci" style="color:#7D6608;">Sin entrada</h3>
+      <div class="sub2" id="fs-ci2"></div>
+      <button class="btn btn-naranja" id="btn-todos" onclick="abrirTodosWA()" style="margin-bottom:8px;font-size:12px;padding:7px;">Recordatorio a TODOS por WhatsApp</button>
+      <div class="lista" id="fl-ci" style="max-height:260px;"></div>
+    </div>
+    <div class="falt-box" id="fb-co">
+      <h3 id="ft-co" style="color:#7D6608;">Sin salida</h3>
+      <div class="sub2" id="fs-co2"></div>
+      <div class="lista" id="fl-co" style="max-height:300px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SEMANA -->
+<div id="tab-semana" class="panel">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;">Acumulado semanal</h2>
+      <div class="sem-sel"><label style="margin:0;">Ciclo:</label><select id="sel-sem" onchange="cargarSem()"></select></div>
+    </div>
+    <div id="sem-rango" style="font-size:12px;color:#888;margin-bottom:12px;"></div>
+    <div style="overflow-x:auto;"><table id="tbl-sem"></table></div>
+  </div>
+</div>
+
+<!-- HORAS EXTRAS -->
+<div id="tab-extras" class="panel">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;">Horas Extras por ciclo</h2>
+      <div class="sem-sel"><label style="margin:0;">Ciclo:</label><select id="sel-extras" onchange="cargarExtras()"></select></div>
+    </div>
+    <div id="extras-rango" style="font-size:12px;color:#888;margin-bottom:14px;"></div>
+    <div id="extras-lista"></div>
+  </div>
+</div>
+
+<!-- RESUMEN -->
+<div id="tab-resumen" class="panel">
+  <div class="card">
+    <h2>Historial de ciclos</h2>
+    <p style="font-size:12px;color:#888;margin-bottom:14px;">Haz clic en un ciclo para ver el detalle.</p>
+    <div id="resumen-lista"></div>
+  </div>
+</div>
+
+<!-- EMPLEADOS -->
+<div id="tab-empleados" class="panel">
+  <div class="card">
+    <h2>Lista de empleados</h2>
+    <p style="font-size:12px;color:#888;margin-bottom:12px;">El pago por hora se calcula automáticamente: Sueldo ÷ Jornada semanal (horas)</p>
+    <div id="emp-lista"></div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div style="flex:2;min-width:120px;"><label>Nombre</label><input type="text" id="new-nom" placeholder="Nombre empleado"></div>
+      <div style="flex:1;min-width:110px;"><label>Teléfono</label><input type="tel" id="new-tel" placeholder="4491234567" maxlength="10"></div>
+      <div style="width:90px;"><label>Jornada (h)</label><input type="number" id="new-jornada" placeholder="48" min="1" max="80"></div>
+      <div style="width:100px;"><label>Sueldo ($)</label><input type="number" id="new-sueldo" placeholder="1500" min="0"></div>
+      <button class="btn btn-azul" style="width:auto;padding:8px 16px;align-self:flex-end;" onclick="addEmp()">Agregar</button>
+    </div>
+    <button class="btn btn-wa" style="margin-top:10px;" onclick="guardarEmps()">Guardar cambios</button>
+    <div class="conf" id="conf-emp"></div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3>Editar registro</h3>
+    <input type="hidden" id="ei"/><input type="hidden" id="efo"/>
+    <div class="mrow"><label>Fecha</label><input type="date" id="ef"/></div>
+    <div class="mrow"><label>Hora entrada</label><input type="time" id="ee"/></div>
+    <div class="mrow"><label>Hora salida (si tiene)</label><input type="time" id="es"/></div>
+    <div class="mbtns">
+      <button class="btn btn-azul" onclick="guardarEdit()">Guardar</button>
+      <button class="btn btn-gris" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket=io({transports:['polling']});
+const DS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+let E=[],R={},idxCI=null,idxCO=null,pIdx=null,pHora=null,pFecha=null,waUrl='',uniVal=true,fHoyQ='';
+
+const H=()=>new Date().toISOString().slice(0,10);
+const sumar=(h,m)=>{const[hh,mm]=h.split(':').map(Number);const d=new Date(2000,0,1,hh,mm+m);return d.toTimeString().slice(0,5);};
+const dMin=(h1,h2)=>{const[a,b]=h1.split(':').map(Number);const[c,d]=h2.split(':').map(Number);return(c*60+d)-(a*60+b);};
+const fF=(iso)=>new Date(iso+'T12:00:00').toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'});
+const fmt$=(n)=>'$'+Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+
+// Ciclos lunes-domingo
+const semsD=(reg)=>{
+  const s=new Set();
+  Object.keys(reg).forEach(f=>{
+    const d=new Date(f+'T12:00:00');
+    const lun=new Date(d);
+    const dow=d.getDay()===0?6:d.getDay()-1;
+    lun.setDate(d.getDate()-dow);
+    s.add(lun.toISOString().slice(0,10));
+  });
+  const d=new Date(),lun=new Date(d);
+  const dow=d.getDay()===0?6:d.getDay()-1;
+  lun.setDate(d.getDate()-dow);
+  s.add(lun.toISOString().slice(0,10));
+  return[...s].sort().reverse();
+};
+const dSem=(iso)=>{const lun=new Date(iso+'T12:00:00');return Array.from({length:7},(_,i)=>{const x=new Date(lun);x.setDate(lun.getDate()+i);return x.toISOString().slice(0,10);});};
+
+socket.on('connect',()=>document.getElementById('estado-top').textContent='En línea — tiempo real');
+socket.on('disconnect',()=>document.getElementById('estado-top').textContent='Sin conexión');
+socket.on('checkin_nuevo',()=>cargarTodo());
+socket.on('checkout_nuevo',()=>cargarTodo());
+socket.on('checkin_borrado',()=>cargarTodo());
+socket.on('registro_editado',()=>cargarTodo());
+socket.on('empleados_updated',()=>{cargarEmps();cargarTodo();});
+
+const HOY=H();
+['fecha-ci','fecha-co','fs-ci','fs-co','fecha-falt'].forEach(id=>{
+  const el=document.getElementById(id);if(el){el.value=HOY;el.max=HOY;}
+});
+document.getElementById('hora-ci').value=new Date().toTimeString().slice(0,5);
+document.getElementById('hora-co').value=new Date().toTimeString().slice(0,5);
+document.getElementById('fecha-top').textContent=new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+setUni(true);
+
+function setUni(val){
+  uniVal=val;
+  document.getElementById('uni-si').classList.toggle('active',val===true);
+  document.getElementById('uni-no').classList.toggle('active',val===false);
+}
+
+function setTab(t,el){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+t).classList.add('active');
+  if(t==='semana'){llenarSel('sel-sem');cargarSem();}
+  if(t==='extras'){llenarSel('sel-extras');cargarExtras();}
+  if(t==='resumen')renderResumen();
+  if(t==='checkout'){renderListaCO();renderFaltCO();}
+  if(t==='faltantes')renderFalt();
+}
+
+function llenarSel(id){
+  const sel=document.getElementById(id);
+  const sems=semsD(R);
+  sel.innerHTML='';
+  sems.forEach((s,i)=>{const dias=dSem(s);sel.innerHTML+=`<option value="${s}">${fF(dias[0])} — ${fF(dias[6])}${i===0?' (actual)':''}</option>`;});
+}
+
+function filtrarE(modo){
+  const q=document.getElementById('busca-'+modo).value.toLowerCase().trim();
+  const drop=document.getElementById('drop-'+modo);
+  const fCO=document.getElementById('fecha-co').value||HOY;
+  const fCI=document.getElementById('fecha-ci').value||HOY;
+  const rF=R[fCO]||{};
+  const rCI=R[fCI]||{};
+  const lista=modo==='co'?E.filter((_,i)=>rF[i]&&!rF[i].salida):E.filter((_,i)=>!rCI[i]);
+  const fil=q?lista.filter(p=>p.nombre.toLowerCase().includes(q)):lista;
+  drop.innerHTML=fil.length?fil.map(p=>{const i=E.indexOf(p);
+    return`<div class="di" onclick="selE('${modo}',${i})"><span class="cod">${p.nombre}</span><span class="tel">${p.tel||'Sin tel'}</span></div>`;}).join('')
+    :'<div class="di nor">Sin resultados</div>';
+  drop.classList.add('show');
+}
+function mostrarD(modo){filtrarE(modo);}
+document.addEventListener('click',e=>{if(!e.target.closest('.bw'))document.querySelectorAll('.dd').forEach(d=>d.classList.remove('show'));});
+
+function selE(modo,idx){
+  const p=E[idx];
+  if(modo==='ci'){
+    waUrl='';pIdx=null;pHora=null;pFecha=null;
+    const btnCI=document.getElementById('btn-ci');
+    if(btnCI){btnCI.style.display='none';btnCI.disabled=true;}
+    idxCI=idx;
+    document.getElementById('nom-ci').textContent=p.nombre;
+    document.getElementById('badge-ci').style.display='block';
+    document.getElementById('wrap-ci').style.display='none';
+    actuPreviewCI();
+  }else{
+    idxCO=idx;
+    document.getElementById('nom-co').textContent=p.nombre;
+    document.getElementById('badge-co').style.display='block';
+    document.getElementById('wrap-co').style.display='none';
+    document.getElementById('btn-co').disabled=false;
+  }
+  document.getElementById('drop-'+modo).classList.remove('show');
+}
+
+function limpiarCI(){
+  idxCI=null;waUrl='';
+  const bc=document.getElementById('badge-ci');if(bc)bc.style.display='none';
+  const wc=document.getElementById('wrap-ci');if(wc)wc.style.display='block';
+  const bci=document.getElementById('busca-ci');if(bci)bci.value='';
+  const pc=document.getElementById('prev-ci');if(pc)pc.style.display='none';
+  const btnci=document.getElementById('btn-ci');if(btnci){btnci.style.display='none';btnci.disabled=true;}
+  setUni(true);
+}
+function limpiarCO(){
+  idxCO=null;
+  document.getElementById('badge-co').style.display='none';
+  document.getElementById('wrap-co').style.display='block';
+  document.getElementById('busca-co').value='';
+  document.getElementById('btn-co').disabled=true;
+  document.getElementById('co-result').style.display='none';
+}
+
+function onFCI(){
+  actuPreviewCI();
+  document.getElementById('fs-ci').value=document.getElementById('fecha-ci').value;
+  actStats();renderHoy();
+}
+
+function actuPreviewCI(){
+  if(idxCI===null)return;
+  const hora=document.getElementById('hora-ci').value;
+  const fecha=document.getElementById('fecha-ci').value;
+  if(!hora||!fecha)return;
+  const p=E[idxCI];
+  const tel=p.tel?'52'+p.tel.replace(/\D/g,'').replace(/^52/,''):'';
+  const msg=`Buenos días ${p.nombre},\n\nTu asistencia ha sido registrada a las ${hora}.\n\n¡Que tengas un excelente día!`;
+  const url=tel?`whatsapp://send?phone=${tel}&text=${encodeURIComponent(msg)}`:`whatsapp://send?text=${encodeURIComponent(msg)}`;
+  waUrl=url;
+  const btnCI=document.getElementById('btn-ci');
+  if(btnCI){btnCI.style.display='block';btnCI.disabled=false;btnCI.textContent=fecha===HOY?'Registrar Asistencia':'Guardar Asistencia';}
+  pIdx=idxCI;pHora=hora;pFecha=fecha;
+}
+
+async function marcarCI(){
+  if(pIdx===null)return;
+  const btnCI=document.getElementById('btn-ci');
+  if(btnCI){btnCI.disabled=true;btnCI.textContent='Registrando...';}
+  const nombreP=E[pIdx].nombre;
+  const fechaP=pFecha;
+  const urlWA=waUrl;
+  waUrl='';
+  await fetch('/api/checkin',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({idx:pIdx,hora:pHora,fecha:pFecha,uniforme:uniVal})});
+  limpiarCI();
+  pIdx=null;pHora=null;pFecha=null;
+  await cargarTodo();
+  const conf=document.getElementById('conf-ci');
+  conf.style.display='block';
+  const uniTxt=uniVal?'✅ Con uniforme':'❌ Sin uniforme';
+  if(urlWA && fechaP===HOY){
+    location.href=urlWA;
+    conf.innerHTML=`<span style="color:#27AE60;">✅ ${nombreP} registrado · ${uniTxt} — Mensaje enviado</span>`;
+  }else{
+    conf.innerHTML=`<span style="color:#27AE60;">✅ ${nombreP} registrado — ${fechaP} · ${uniTxt}</span>`;
+  }
+  setTimeout(()=>{conf.style.display='none';conf.innerHTML='';},8000);
+}
+
+function onFCO(){
+  limpiarCO();
+  document.getElementById('fs-co').value=document.getElementById('fecha-co').value;
+  actStatsCO();renderFaltCO();
+}
+
+async function regCO(){
+  if(idxCO===null)return;
+  const hSal=document.getElementById('hora-co').value;
+  const fCO=document.getElementById('fecha-co').value;
+  if(!hSal||!fCO)return;
+  const p=E[idxCO];
+  const rF=(R[fCO]||{})[idxCO];
+  if(!rF){alert('Sin entrada registrada en esa fecha');return;}
+  const mins=dMin(rF.entrada,hSal);
+  const horas=round2(mins/60);
+  // Calcular extras/faltas por día (jornada diaria = jornada semanal / dias_semana)
+  // Se acumula semanalmente, aquí solo guardamos las horas del día
+  const extra_mins=Math.max(0,0); // se calcula al final de semana
+  const falta_mins=0;
+  await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({idx:idxCO,fecha:fCO,salida:hSal,horas,extra_mins,falta_mins})});
+  const hh=Math.floor(Math.max(0,mins)/60);
+  const mm=Math.abs(mins%60);
+  const tStr=`${hh}h ${mm}min`;
+  const div=document.getElementById('co-result');
+  div.className=`co-result co-ok`;
+  div.innerHTML=`<div>✅ Salida registrada</div><div class="big">${tStr}</div><div>${rF.entrada} → ${hSal}</div>`;
+  div.style.display='block';
+  mostrarConf('conf-co',`Salida: ${p.nombre} — ${tStr}`);
+  limpiarCO();
+  await cargarTodo();
+  renderListaCO();renderFaltCO();
+}
+
+function round2(n){return Math.round(n*100)/100;}
+
+function renderListaCO(){
+  const f=document.getElementById('fecha-co').value||HOY;
+  const reg=R[f]||{};
+  let html='';
+  E.forEach((p,i)=>{
+    const r=reg[i];if(!r||!r.salida)return;
+    html+=`<div class="item"><div class="dot dot-g"></div><span class="nm">${p.nombre}</span>
+      <span class="pill pill-ci">${r.entrada}</span>
+      <span class="pill pill-co">${r.salida}</span>
+      <span class="pill pill-ok">${r.horas}h</span>
+      <span class="pill ${r.uniforme?'pill-uni':'pill-nouni'}">${r.uniforme?'Uniforme':'Sin uniforme'}</span></div>`;
+  });
+  document.getElementById('lista-co').innerHTML=html||'<div style="padding:1rem;text-align:center;color:#aaa;font-size:13px;">Sin salidas registradas</div>';
+}
+
+function actStats(){
+  const f=(document.getElementById('fs-ci')||{value:HOY}).value||HOY;
+  const reg=R[f]||{};
+  const ci=Object.keys(reg).length;
+  const co=Object.values(reg).filter(r=>r&&r.salida).length;
+  const tot=E.length;
+  document.getElementById('s-ci').textContent=ci;
+  document.getElementById('s-co').textContent=co;
+  document.getElementById('s-pend').textContent=Math.max(0,tot-ci);
+  document.getElementById('s-tot').textContent=tot;
+  const lbl=document.getElementById('lbl-f-reg');
+  if(lbl)lbl.textContent=fF(f);
+  const badge=document.getElementById('badge-falt');
+  if(badge){badge.textContent=Math.max(0,tot-ci);badge.style.display=(tot-ci)>0?'inline':'none';}
+}
+
+function actStatsCO(){
+  const f=(document.getElementById('fs-co')||{value:HOY}).value||HOY;
+  const reg=R[f]||{};
+  const ci=Object.keys(reg).length;
+  const co=Object.values(reg).filter(r=>r&&r.salida).length;
+  // Jornada diaria promedio = jornada_semanal/5 (o la que corresponda)
+  const cum=Object.entries(reg).filter(([i,r])=>{
+    if(!r||!r.horas)return false;
+    const emp=E[parseInt(i)];
+    if(!emp)return false;
+    const jorDia=emp.jornada/6;
+    return r.horas>=jorDia;
+  }).length;
+  document.getElementById('co-ci').textContent=ci;
+  document.getElementById('co-co').textContent=co;
+  document.getElementById('co-pco').textContent=Math.max(0,ci-co);
+  document.getElementById('co-cum').textContent=cum;
+}
+
+function filtrarHoy(q){fHoyQ=q.toLowerCase();renderHoy();}
+function renderHoy(){
+  const f=(document.getElementById('fs-ci')||{value:HOY}).value||HOY;
+  const reg=R[f]||{};
+  let html='';
+  E.forEach((p,i)=>{
+    if(fHoyQ&&!p.nombre.toLowerCase().includes(fHoyQ))return;
+    const r=reg[i];
+    if(r){
+      const coI=r.salida?`<span class="pill pill-co">${r.salida}(${r.horas}h)</span>`:`<span class="pill pill-warn">Sin salida</span>`;
+      const uniI=`<span class="pill ${r.uniforme?'pill-uni':'pill-nouni'}">${r.uniforme?'Uni✅':'Uni❌'}</span>`;
+      html+=`<div class="item"><div class="dot dot-g"></div><span class="nm">${p.nombre}</span>
+        <span class="pill pill-ci">${r.entrada}</span>${coI}${uniI}
+        <button class="btn-edit" onclick="abrirModal(${i},'${f}')">Editar</button>
+        <button class="btn-del" onclick="borrarCI(${i},'${f}')">Borrar</button></div>`;
+    }else{
+      html+=`<div class="item"><div class="dot dot-gr"></div><span class="nm" style="color:#aaa">${p.nombre}</span><span class="pill pill-pend">Sin entrada</span></div>`;
+    }
+  });
+  document.getElementById('lista-hoy').innerHTML=html||'<div style="padding:1rem;text-align:center;color:#aaa;font-size:13px;">Sin resultados</div>';
+}
+
+async function borrarCI(idx,fecha){
+  if(!confirm('¿Borrar la asistencia?'))return;
+  await fetch(`/api/checkin/${idx}?fecha=${fecha}`,{method:'DELETE'});
+  await cargarTodo();
+}
+
+function abrirModal(idx,fecha){
+  const r=(R[fecha]||{})[idx];if(!r)return;
+  document.getElementById('ei').value=idx;
+  document.getElementById('efo').value=fecha;
+  document.getElementById('ef').value=fecha;
+  document.getElementById('ef').max=HOY;
+  document.getElementById('ee').value=r.entrada||'';
+  document.getElementById('es').value=r.salida||'';
+  document.getElementById('modal-bg').classList.add('show');
+}
+function cerrarModal(){document.getElementById('modal-bg').classList.remove('show');}
+async function guardarEdit(){
+  await fetch('/api/editar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    idx:document.getElementById('ei').value,
+    fecha_orig:document.getElementById('efo').value,
+    fecha_nueva:document.getElementById('ef').value,
+    entrada:document.getElementById('ee').value,
+    salida:document.getElementById('es').value
+  })});
+  cerrarModal();mostrarConf('conf-ci','Registro actualizado');await cargarTodo();
+}
+
+const msgR=(nombre)=>`Hola ${nombre},\n\nTe recordamos que aún no hemos recibido tu asistencia de hoy ${new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})}.\n\nPor favor regístrala a la brevedad.\n\n¡Gracias!`;
+
+function renderFalt(){
+  const f=document.getElementById('fecha-falt').value||HOY;
+  const reg=R[f]||{};
+  const fCI=E.map((p,i)=>({p,i})).filter(({i})=>!reg[i]);
+  const fCO=E.map((p,i)=>({p,i})).filter(({i})=>reg[i]&&!reg[i].salida);
+  document.getElementById('ft-ci').textContent=`Sin entrada — ${fF(f)} (${fCI.length})`;
+  document.getElementById('fs-ci2').textContent=`${fCI.length} empleado${fCI.length!==1?'s':''}`;
+  document.getElementById('fb-ci').className=fCI.length?'falt-box':'falt-box ok';
+  document.getElementById('btn-todos').style.display=fCI.length?'block':'none';
+  document.getElementById('fl-ci').innerHTML=fCI.length?fCI.map(({p})=>{
+    const tel=p.tel?'52'+p.tel.replace(/\D/g,'').replace(/^52/,''):'';
+    const url=tel?`whatsapp://send?phone=${tel}&text=${encodeURIComponent(msgR(p.nombre))}`:`whatsapp://send?text=${encodeURIComponent(msgR(p.nombre))}`;
+    return`<div class="item" style="background:#fff;border-radius:7px;margin-bottom:3px;padding:7px 9px;"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span><span style="font-size:10px;color:#aaa;margin-right:6px;">${p.tel||''}</span><a href="${url}" class="wa-btn">WA</a></div>`;
+  }).join(''):'<div style="padding:8px;text-align:center;color:#aaa;font-size:12px;">Todos tienen entrada ✅</div>';
+  document.getElementById('ft-co').textContent=`Sin salida — ${fF(f)} (${fCO.length})`;
+  document.getElementById('fs-co2').textContent=`${fCO.length} con entrada sin salida`;
+  document.getElementById('fb-co').className=fCO.length?'falt-box':'falt-box ok';
+  document.getElementById('fl-co').innerHTML=fCO.length?fCO.map(({p,i})=>`<div class="item" style="background:#fff;border-radius:7px;margin-bottom:3px;padding:7px 9px;"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span><span class="pill pill-ci" style="font-size:10px;">${(reg[i]||{}).entrada||''}</span></div>`).join(''):'<div style="padding:8px;text-align:center;color:#aaa;font-size:12px;">Todos tienen salida ✅</div>';
+  document.getElementById('badge-falt').textContent=fCI.length;
+  document.getElementById('badge-falt').style.display=fCI.length>0?'inline':'none';
+}
+
+function renderFaltCO(){
+  const f=document.getElementById('fs-co').value||HOY;
+  const reg=R[f]||{};
+  const fCI=E.map((p,i)=>({p,i})).filter(({i})=>!reg[i]);
+  const fCO=E.map((p,i)=>({p,i})).filter(({i})=>reg[i]&&!reg[i].salida);
+  document.getElementById('fci-tit').textContent=`Sin entrada (${fCI.length})`;
+  document.getElementById('fci-sub').textContent=`${fCI.length} sin registrar`;
+  document.getElementById('fci-box').className=fCI.length?'falt-box':'falt-box ok';
+  document.getElementById('fci-lista').innerHTML=fCI.map(({p})=>`<div class="item"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span></div>`).join('')||'<div style="padding:6px;text-align:center;color:#aaa;font-size:12px;">Todos ✅</div>';
+  document.getElementById('fco-tit').textContent=`Sin salida (${fCO.length})`;
+  document.getElementById('fco-sub').textContent=`${fCO.length} con entrada sin salida`;
+  document.getElementById('fco-box').className=fCO.length?'falt-box':'falt-box ok';
+  document.getElementById('fco-lista').innerHTML=fCO.map(({p,i})=>`<div class="item"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span><span class="pill pill-ci" style="font-size:10px;">${(reg[i]||{}).entrada||''}</span></div>`).join('')||'<div style="padding:6px;text-align:center;color:#aaa;font-size:12px;">Todos ✅</div>';
+}
+
+function abrirTodosWA(){
+  const f=document.getElementById('fecha-falt').value||HOY;
+  const reg=R[f]||{};
+  const faltantes=E.map((p,i)=>({p,i})).filter(({i})=>!reg[i]);
+  if(!faltantes.length){alert('Todos ya tienen entrada hoy.');return;}
+  let n=0;
+  function siguiente(){
+    if(n>=faltantes.length)return;
+    const {p}=faltantes[n];
+    const tel=p.tel?'52'+p.tel.replace(/\D/g,'').replace(/^52/,''):'';
+    const url=tel?`whatsapp://send?phone=${tel}&text=${encodeURIComponent(msgR(p.nombre))}`:`whatsapp://send?text=${encodeURIComponent(msgR(p.nombre))}`;
+    location.href=url;n++;
+    if(n<faltantes.length){if(confirm(`Enviado a ${p.nombre}. ¿Continuar con el siguiente (${n+1}/${faltantes.length})?`)){setTimeout(siguiente,800);}}
+    else{alert('Recordatorios enviados.');}
+  }
+  siguiente();
+}
+
+function cargarSem(){
+  const sel=document.getElementById('sel-sem');if(!sel.value)return;
+  const dias=dSem(sel.value);
+  const h=H();
+  document.getElementById('sem-rango').textContent=`${fF(dias[0])} al ${fF(dias[6])} · Verde=entrada completa · Jornada semanal por empleado`;
+  let html=`<thead><tr><th style="text-align:left;">Empleado</th>`;
+  dias.forEach((_,i)=>html+=`<th>${DS[i]}<br><small style="font-weight:400">${dias[i].slice(5)}</small></th>`);
+  html+=`<th>Total h</th><th>Jornada</th><th>Diferencia</th></tr></thead><tbody>`;
+  E.forEach((p,pi)=>{
+    let totalMins=0;
+    const celdas=dias.map(f=>{
+      const r=(R[f]||{})[pi];
+      if(r&&r.horas){
+        totalMins+=Math.round(r.horas*60);
+        const co=r.salida?`<span style="font-size:9px;color:#E74C3C;">▶${r.salida}</span>`:'';
+        return`<td><span class="tci">${r.entrada}</span>${co}<br><span style="font-size:9px;">${r.horas}h</span></td>`;
+      }
+      if(r&&r.entrada&&!r.salida) return`<td><span class="tci">${r.entrada}</span><br><span style="font-size:9px;color:#F39C12;">Sin salida</span></td>`;
+      if(f<=h) return`<td><span class="cell-falta">Falta</span></td>`;
+      if(f===h) return`<td><span class="cell-hoy">Hoy</span></td>`;
+      return`<td style="color:#ddd;">—</td>`;
+    }).join('');
+    const totalH=round2(totalMins/60);
+    const jornada=p.jornada||48;
+    const diff=round2(totalH-jornada);
+    const diffCell=diff>=0
+      ?`<td><span class="pill pill-extra">+${diff}h extra</span></td>`
+      :`<td><span class="pill pill-falta">${diff}h falta</span></td>`;
+    html+=`<tr><td title="${p.nombre}">${p.nombre}</td>${celdas}<td style="font-weight:700;text-align:center;">${totalH}h</td><td style="text-align:center;">${jornada}h</td>${diffCell}</tr>`;
+  });
+  html+='</tbody>';
+  document.getElementById('tbl-sem').innerHTML=html;
+}
+
+function cargarExtras(){
+  const sel=document.getElementById('sel-extras');if(!sel.value)return;
+  const dias=dSem(sel.value);
+  document.getElementById('extras-rango').textContent=`${fF(dias[0])} al ${fF(dias[6])}`;
+  let html='';
+  E.forEach((p,pi)=>{
+    let totalMins=0;
+    dias.forEach(f=>{
+      const r=(R[f]||{})[pi];
+      if(r&&r.horas) totalMins+=Math.round(r.horas*60);
+    });
+    const totalH=round2(totalMins/60);
+    const jornada=p.jornada||48;
+    const sueldo=p.sueldo||0;
+    const pagoH=p.pago_hora||(jornada>0?round2(sueldo/jornada):0);
+    const diffH=round2(totalH-jornada);
+    const extraH=diffH>0?diffH:0;
+    const faltaH=diffH<0?Math.abs(diffH):0;
+    const pagoExtra=round2(extraH*pagoH);
+    const descuento=round2(faltaH*pagoH);
+    const total=round2(sueldo+pagoExtra-descuento);
+    const tipo=diffH>=0?'positivo':'negativo';
+    html+=`<div class="extra-card ${tipo}">
+      <div class="extra-nombre">${p.nombre}</div>
+      <div class="extra-grid">
+        <div class="extra-stat"><div class="n">${totalH}h</div><div class="l">Horas trabajadas</div></div>
+        <div class="extra-stat"><div class="n">${jornada}h</div><div class="l">Jornada</div></div>
+        <div class="extra-stat" style="${extraH>0?'background:#D5F5E3;':'background:#EEF2F7;'}">
+          <div class="n" style="color:${extraH>0?'#27AE60':'#aaa'};">${extraH>0?'+'+extraH+'h':'0h'}</div>
+          <div class="l">Horas extra</div>
+        </div>
+        <div class="extra-stat" style="${faltaH>0?'background:#FADBD8;':'background:#EEF2F7;'}">
+          <div class="n" style="color:${faltaH>0?'#E74C3C':'#aaa'};">${faltaH>0?'-'+faltaH+'h':'0h'}</div>
+          <div class="l">Horas faltantes</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;font-size:12px;">
+        <div style="background:#EEF2F7;border-radius:6px;padding:7px;text-align:center;">
+          <div style="font-weight:700;">${fmt$(sueldo)}</div><div style="color:#888;">Sueldo base</div>
+        </div>
+        <div style="background:${extraH>0?'#D5F5E3':faltaH>0?'#FADBD8':'#EEF2F7'};border-radius:6px;padding:7px;text-align:center;">
+          <div style="font-weight:700;color:${extraH>0?'#27AE60':faltaH>0?'#E74C3C':'#888'};">${extraH>0?'+'+fmt$(pagoExtra):faltaH>0?'-'+fmt$(descuento):'$0.00'}</div>
+          <div style="color:#888;">${extraH>0?'Pago extras':faltaH>0?'Descuento':'Sin ajuste'}</div>
+        </div>
+        <div style="background:#1a5276;border-radius:6px;padding:7px;text-align:center;">
+          <div style="font-weight:700;color:#fff;">${fmt$(total)}</div><div style="color:rgba(255,255,255,.7);">Total a pagar</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#888;">${fmt$(pagoH)}/hora · Jornada: ${jornada}h semanales</div>
+    </div>`;
+  });
+  document.getElementById('extras-lista').innerHTML=html||'<div style="text-align:center;color:#aaa;padding:2rem;">Sin registros en este ciclo</div>';
+}
+
+function renderResumen(){
+  const sems=semsD(R);
+  let html='';
+  sems.forEach((s,idx)=>{
+    const dias=dSem(s);
+    const totalCI=dias.reduce((acc,f)=>acc+Object.keys(R[f]||{}).length,0);
+    const esActual=idx===0;
+    // Calcular extras/faltas globales del ciclo
+    let conExtra=0,conFalta=0;
+    E.forEach((p,pi)=>{
+      let totalMins=0;
+      dias.forEach(f=>{const r=(R[f]||{})[pi];if(r&&r.horas)totalMins+=Math.round(r.horas*60);});
+      const diff=round2(totalMins/60)-(p.jornada||48);
+      if(diff>0)conExtra++;else if(diff<0)conFalta++;
+    });
+    html+=`<div style="background:#fff;border:1.5px solid #D8E2F0;border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;" onclick="toggleResumen(${idx},'${s}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#1a5276;">${fF(dias[0])} — ${fF(dias[6])} ${esActual?'<span style="background:#1a5276;color:#fff;font-size:10px;padding:2px 8px;border-radius:99px;margin-left:6px;">Actual</span>':''}</div>
+          <div style="font-size:12px;color:#888;margin-top:3px;">${totalCI} asistencias registradas</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="background:#D5F5E3;color:#1A5C2A;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;">${conExtra} con extras</span>
+          <span style="background:#FADBD8;color:#7B241C;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;">${conFalta} con faltas</span>
+          <span style="font-size:18px;color:#1a5276;" id="rarr-${idx}">▼</span>
+        </div>
+      </div>
+      <div id="rbody-${idx}" style="display:none;margin-top:12px;"></div>
+    </div>`;
+  });
+  document.getElementById('resumen-lista').innerHTML=html||'<div style="text-align:center;color:#aaa;padding:2rem;">Sin ciclos registrados aún</div>';
+}
+
+function toggleResumen(idx,semVal){
+  const body=document.getElementById(`rbody-${idx}`);
+  const arr=document.getElementById(`rarr-${idx}`);
+  const isOpen=body.style.display==='block';
+  document.querySelectorAll('[id^=rbody-]').forEach(b=>b.style.display='none');
+  document.querySelectorAll('[id^=rarr-]').forEach(a=>a.textContent='▼');
+  if(!isOpen){
+    body.style.display='block';arr.textContent='▲';
+    if(!body.innerHTML){
+      const dias=dSem(semVal);
+      let html='<table><thead><tr><th style="text-align:left;">Empleado</th><th>Total h</th><th>Jornada</th><th>Extras/Falta</th><th>Total a pagar</th></tr></thead><tbody>';
+      E.forEach((p,pi)=>{
+        let totalMins=0;
+        dias.forEach(f=>{const r=(R[f]||{})[pi];if(r&&r.horas)totalMins+=Math.round(r.horas*60);});
+        const totalH=round2(totalMins/60);
+        const jornada=p.jornada||48;
+        const sueldo=p.sueldo||0;
+        const pagoH=p.pago_hora||(jornada>0?round2(sueldo/jornada):0);
+        const diffH=round2(totalH-jornada);
+        const extraH=diffH>0?diffH:0;
+        const faltaH=diffH<0?Math.abs(diffH):0;
+        const total=round2(sueldo+(extraH*pagoH)-(faltaH*pagoH));
+        const diffCell=diffH>=0?`<span class="pill pill-extra">+${extraH}h</span>`:`<span class="pill pill-falta">-${faltaH}h</span>`;
+        html+=`<tr><td>${p.nombre}</td><td>${totalH}h</td><td>${jornada}h</td><td>${diffCell}</td><td style="font-weight:700;">${fmt$(total)}</td></tr>`;
+      });
+      html+='</tbody></table>';
+      body.innerHTML=html;
+    }
+  }
+}
+
+function renderEmps(){
+  const div=document.getElementById('emp-lista');div.innerHTML='';
+  E.forEach((p,i)=>{
+    const ph=p.jornada>0?round2(p.sueldo/p.jornada):0;
+    div.innerHTML+=`<div class="prow">
+      <input type="text" value="${p.nombre}" placeholder="Nombre" style="flex:2;" oninput="E[${i}].nombre=this.value"/>
+      <input type="tel" value="${p.tel||''}" placeholder="4491234567" style="width:120px;" maxlength="10" oninput="E[${i}].tel=this.value"/>
+      <input type="number" value="${p.jornada||48}" placeholder="48" style="width:70px;" min="1" oninput="E[${i}].jornada=+this.value;actuPH(${i})"/>
+      <input type="number" value="${p.sueldo||0}" placeholder="1500" style="width:90px;" min="0" oninput="E[${i}].sueldo=+this.value;actuPH(${i})"/>
+      <span id="ph-${i}" style="font-size:12px;color:#1a5276;white-space:nowrap;min-width:70px;">${ph>0?'$'+ph+'/h':''}</span>
+      <button onclick="E.splice(${i},1);renderEmps()">x</button>
+    </div>`;
+  });
+}
+
+function actuPH(i){
+  const p=E[i];
+  const ph=p.jornada>0?round2(p.sueldo/p.jornada):0;
+  p.pago_hora=ph;
+  const el=document.getElementById(`ph-${i}`);
+  if(el)el.textContent=ph>0?'$'+ph+'/h':'';
+}
+
+function addEmp(){
+  const n=document.getElementById('new-nom').value.trim();
+  if(!n)return;
+  const j=parseFloat(document.getElementById('new-jornada').value)||48;
+  const s=parseFloat(document.getElementById('new-sueldo').value)||0;
+  E.push({nombre:n,tel:document.getElementById('new-tel').value.trim(),jornada:j,sueldo:s,pago_hora:j>0?round2(s/j):0});
+  document.getElementById('new-nom').value='';
+  document.getElementById('new-tel').value='';
+  document.getElementById('new-jornada').value='';
+  document.getElementById('new-sueldo').value='';
+  renderEmps();
+}
+
+async function guardarEmps(){
+  await fetch('/api/empleados',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(E)});
+  mostrarConf('conf-emp','Guardado correctamente');
+}
+
+async function cargarEmps(){
+  const r=await fetch('/api/empleados');
+  E=await r.json();
+  renderEmps();
+}
+
+async function cargarTodo(){
+  const r=await fetch('/api/registros/todos');
+  R=await r.json();
+  actStats();actStatsCO();renderHoy();renderFalt();renderFaltCO();renderListaCO();
+  filtrarE('ci');filtrarE('co');
+}
+
+function mostrarConf(id,msg){
+  const c=document.getElementById(id);if(!c)return;
+  c.textContent=msg;c.style.display='block';
+  setTimeout(()=>c.style.display='none',4000);
+}
+
+(async()=>{await cargarEmps();await cargarTodo();})();
+</script>
+</body>
+</html>
