@@ -244,7 +244,8 @@ tr:hover td{background:#F5F8FC;}
       <h2 style="margin:0;">Acumulado semanal</h2>
       <div class="sem-sel"><label style="margin:0;">Ciclo:</label><select id="sel-sem" onchange="cargarSem()"></select></div>
     </div>
-    <div id="sem-rango" style="font-size:12px;color:#888;margin-bottom:12px;"></div>
+    <div id="sem-rango" style="font-size:12px;color:#888;margin-bottom:8px;"></div>
+    <button id="btn-excel-sem" style="display:none;margin-bottom:10px;background:#1a5276;color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;">⬇️ Descargar Excel</button>
     <div style="overflow-x:auto;"><table id="tbl-sem"></table></div>
   </div>
 </div>
@@ -381,7 +382,7 @@ function filtrarE(modo){
   const fCI=document.getElementById('fecha-ci').value||HOY;
   const rF=R[fCO]||{};
   const rCI=R[fCI]||{};
-  const lista=modo==='co'?E.filter((_,i)=>rF[i]&&!rF[i].salida):E.filter((_,i)=>!rCI[i]);
+  const lista=modo==='co'?E.filter((_,i)=>rF[i]&&rF[i].entrada&&!rF[i].salida):E.filter((_,i)=>!rCI[i]||!rCI[i].entrada);
   const fil=q?lista.filter(p=>p.nombre.toLowerCase().includes(q)):lista;
   drop.innerHTML=fil.length?fil.map(p=>{const i=E.indexOf(p);
     return`<div class="di" onclick="selE('${modo}',${i})"><span class="cod">${p.nombre}</span><span class="tel">${p.tel||'Sin tel'}</span></div>`;}).join('')
@@ -462,8 +463,10 @@ async function marcarCI(){
   await fetch('/api/checkin',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({idx:pIdx,hora:pHora,fecha:pFecha,uniforme:uniVal})});
   limpiarCI();
+  setUni(true);
   pIdx=null;pHora=null;pFecha=null;
   await cargarTodo();
+  actStats();renderHoy();filtrarE('co');
   const conf=document.getElementById('conf-ci');
   conf.style.display='block';
   const uniTxt=uniVal?'✅ Con uniforme':'❌ Sin uniforme';
@@ -670,38 +673,84 @@ function abrirTodosWA(){
   siguiente();
 }
 
+function redondearExtras(mins){
+  // Solo cuenta extras si son mas de 30 min, se redondea a media hora
+  if(mins<=0)return 0;
+  const medias=Math.floor(mins/30);
+  return round2(medias*0.5);
+}
+
 function cargarSem(){
   const sel=document.getElementById('sel-sem');if(!sel.value)return;
   const dias=dSem(sel.value);
   const h=H();
-  document.getElementById('sem-rango').textContent=`${fF(dias[0])} al ${fF(dias[6])} · Verde=entrada completa · Jornada semanal por empleado`;
+  document.getElementById('sem-rango').textContent=`${fF(dias[0])} al ${fF(dias[6])} · Extras: solo si >30min · Multa uniforme: $50/día`;
   let html=`<thead><tr><th style="text-align:left;">Empleado</th>`;
   dias.forEach((_,i)=>html+=`<th>${DS[i]}<br><small style="font-weight:400">${dias[i].slice(5)}</small></th>`);
-  html+=`<th>Total h</th><th>Jornada</th><th>Diferencia</th></tr></thead><tbody>`;
+  html+=`<th>Total h</th><th>Jornada</th><th>H.Extra</th><th>Sin Uni</th><th>Multa Uni</th></tr></thead><tbody>`;
   E.forEach((p,pi)=>{
     let totalMins=0;
+    let diasSinUni=0;
     const celdas=dias.map(f=>{
       const r=(R[f]||{})[pi];
-      if(r&&r.horas){
+      if(r&&r.horas&&r.salida){
         totalMins+=Math.round(r.horas*60);
-        const co=r.salida?`<span style="font-size:9px;color:#E74C3C;">▶${r.salida}</span>`:'';
-        return`<td><span class="tci">${r.entrada}</span>${co}<br><span style="font-size:9px;">${r.horas}h</span></td>`;
+        const uniIcon=r.uniforme?'':'<span style="font-size:9px;color:#E74C3C;">❌uni</span>';
+        if(!r.uniforme)diasSinUni++;
+        const co=`<span style="font-size:9px;color:#E74C3C;">▶${r.salida}</span>`;
+        return`<td><span class="tci">${r.entrada}</span>${co}<br><span style="font-size:9px;">${r.horas}h</span>${uniIcon}</td>`;
       }
       if(r&&r.entrada&&!r.salida) return`<td><span class="tci">${r.entrada}</span><br><span style="font-size:9px;color:#F39C12;">Sin salida</span></td>`;
-      if(f<=h) return`<td><span class="cell-falta">Falta</span></td>`;
+      if(f<h) return`<td><span class="cell-falta">Falta</span></td>`;
       if(f===h) return`<td><span class="cell-hoy">Hoy</span></td>`;
       return`<td style="color:#ddd;">—</td>`;
     }).join('');
     const totalH=round2(totalMins/60);
     const jornada=p.jornada||48;
-    const diff=round2(totalH-jornada);
-    const diffCell=diff>=0
-      ?`<td><span class="pill pill-extra">+${diff}h extra</span></td>`
-      :`<td><span class="pill pill-falta">${diff}h falta</span></td>`;
-    html+=`<tr><td title="${p.nombre}">${p.nombre}</td>${celdas}<td style="font-weight:700;text-align:center;">${totalH}h</td><td style="text-align:center;">${jornada}h</td>${diffCell}</tr>`;
+    const diffMins=totalMins-Math.round(jornada*60);
+    const extraH=diffMins>30?redondearExtras(diffMins):0;
+    const faltaH=diffMins<0?round2(Math.abs(diffMins)/60):0;
+    const multaUni=diasSinUni*50;
+    const diffCell=extraH>0?`<td><span class="pill pill-extra">+${extraH}h</span></td>`:faltaH>0?`<td><span class="pill pill-falta">-${faltaH}h</span></td>`:`<td><span style="font-size:11px;color:#aaa;">0h</span></td>`;
+    const uniCell=diasSinUni>0?`<td><span class="pill pill-nouni">${diasSinUni} día${diasSinUni>1?'s':''}</span></td>`:`<td><span style="font-size:11px;color:#27AE60;">✅</span></td>`;
+    const multaCell=multaUni>0?`<td><span class="pill pill-falta">-$${multaUni}</span></td>`:`<td><span style="font-size:11px;color:#aaa;">$0</span></td>`;
+    html+=`<tr><td title="${p.nombre}">${p.nombre}</td>${celdas}<td style="font-weight:700;text-align:center;">${totalH}h</td><td style="text-align:center;">${jornada}h</td>${diffCell}${uniCell}${multaCell}</tr>`;
   });
   html+='</tbody>';
   document.getElementById('tbl-sem').innerHTML=html;
+  document.getElementById('btn-excel-sem').style.display='inline-block';
+  document.getElementById('btn-excel-sem').onclick=()=>exportarExcelSem(sel.value);
+}
+
+function exportarExcelSem(semVal){
+  const dias=dSem(semVal);
+  let csv=`Empleado,${dias.map((_,i)=>DS[i]).join(',')},Total h,Jornada,H.Extra,Días sin uni,Multa uni,Total a pagar
+`;
+  E.forEach((p,pi)=>{
+    let totalMins=0;let diasSinUni=0;
+    const celdas=dias.map(f=>{
+      const r=(R[f]||{})[pi];
+      if(r&&r.horas&&r.salida){totalMins+=Math.round(r.horas*60);if(!r.uniforme)diasSinUni++;return r.horas+'h';}
+      if(r&&r.entrada)return 'Sin salida';
+      return 'Falta';
+    });
+    const totalH=round2(totalMins/60);
+    const jornada=p.jornada||48;
+    const diffMins=totalMins-Math.round(jornada*60);
+    const extraH=diffMins>30?redondearExtras(diffMins):0;
+    const faltaH=diffMins<0?round2(Math.abs(diffMins)/60):0;
+    const sueldo=p.sueldo||0;
+    const pagoH=p.pago_hora||(jornada>0?round2(sueldo/jornada):0);
+    const multaUni=diasSinUni*50;
+    const total=round2(sueldo+(extraH*pagoH)-(faltaH*pagoH)-multaUni);
+    csv+=`"${p.nombre}",${celdas.join(',')},${totalH},${jornada},${extraH},${diasSinUni},$${multaUni},$${total}
+`;
+  });
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`asistencia_${semVal}.csv`;a.click();
+  URL.revokeObjectURL(url);
 }
 
 function cargarExtras(){
@@ -719,13 +768,18 @@ function cargarExtras(){
     const jornada=p.jornada||48;
     const sueldo=p.sueldo||0;
     const pagoH=p.pago_hora||(jornada>0?round2(sueldo/jornada):0);
-    const diffH=round2(totalH-jornada);
-    const extraH=diffH>0?diffH:0;
-    const faltaH=diffH<0?Math.abs(diffH):0;
+    // Calcular dias sin uniforme
+    let diasSinUni=0;
+    dias.forEach(f=>{const r=(R[f]||{})[pi];if(r&&r.salida&&r.entrada&&!r.uniforme)diasSinUni++;});
+    const multaUni=diasSinUni*50;
+    // Extras solo si >30 min
+    const diffMins=totalMins-Math.round(jornada*60);
+    const extraH=diffMins>30?redondearExtras(diffMins):0;
+    const faltaH=diffMins<0?round2(Math.abs(diffMins)/60):0;
     const pagoExtra=round2(extraH*pagoH);
     const descuento=round2(faltaH*pagoH);
-    const total=round2(sueldo+pagoExtra-descuento);
-    const tipo=diffH>=0?'positivo':'negativo';
+    const total=round2(sueldo+pagoExtra-descuento-multaUni);
+    const tipo=total>=sueldo?'positivo':'negativo';
     html+=`<div class="extra-card ${tipo}">
       <div class="extra-nombre">${p.nombre}</div>
       <div class="extra-grid">
@@ -740,19 +794,23 @@ function cargarExtras(){
           <div class="l">Horas faltantes</div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;font-size:12px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;font-size:12px;">
         <div style="background:#EEF2F7;border-radius:6px;padding:7px;text-align:center;">
           <div style="font-weight:700;">${fmt$(sueldo)}</div><div style="color:#888;">Sueldo base</div>
         </div>
         <div style="background:${extraH>0?'#D5F5E3':faltaH>0?'#FADBD8':'#EEF2F7'};border-radius:6px;padding:7px;text-align:center;">
           <div style="font-weight:700;color:${extraH>0?'#27AE60':faltaH>0?'#E74C3C':'#888'};">${extraH>0?'+'+fmt$(pagoExtra):faltaH>0?'-'+fmt$(descuento):'$0.00'}</div>
-          <div style="color:#888;">${extraH>0?'Pago extras':faltaH>0?'Descuento':'Sin ajuste'}</div>
+          <div style="color:#888;">${extraH>0?'Pago extras':faltaH>0?'Desc.horas':'Sin ajuste'}</div>
+        </div>
+        <div style="background:${multaUni>0?'#FADBD8':'#EEF2F7'};border-radius:6px;padding:7px;text-align:center;">
+          <div style="font-weight:700;color:${multaUni>0?'#E74C3C':'#aaa'};">${multaUni>0?'-'+fmt$(multaUni):'$0.00'}</div>
+          <div style="color:#888;">Multa uni (${diasSinUni}d)</div>
         </div>
         <div style="background:#1a5276;border-radius:6px;padding:7px;text-align:center;">
           <div style="font-weight:700;color:#fff;">${fmt$(total)}</div><div style="color:rgba(255,255,255,.7);">Total a pagar</div>
         </div>
       </div>
-      <div style="font-size:11px;color:#888;">${fmt$(pagoH)}/hora · Jornada: ${jornada}h semanales</div>
+      <div style="font-size:11px;color:#888;">${fmt$(pagoH)}/hora · Jornada: ${jornada}h · Multa uniforme: $50/día</div>
     </div>`;
   });
   document.getElementById('extras-lista').innerHTML=html||'<div style="text-align:center;color:#aaa;padding:2rem;">Sin registros en este ciclo</div>';
