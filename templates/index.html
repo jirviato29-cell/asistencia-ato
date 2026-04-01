@@ -444,7 +444,10 @@ function actuPreviewCI(){
   if(!hora||!fecha)return;
   const p=E[idxCI];
   const tel=p.tel?'52'+p.tel.replace(/\D/g,'').replace(/^52/,''):'';
-  const msg=`Buenos días ${p.nombre},\n\nTu asistencia ha sido registrada a las ${hora}.\n\n¡Que tengas un excelente día!`;
+  const uniMsg=uniVal
+    ?`✅ Gracias por cumplir con tu uniforme, ¡sigue así!`
+    :`⚠️ Hoy no traes uniforme. Te invitamos a traer tu uniforme diario, es parte de nuestra imagen.`;
+  const msg=`Buenos días ${p.nombre},\n\nTu asistencia ha sido registrada a las ${hora}.\n\n${uniMsg}\n\n¡Que tengas un excelente día!`;
   const url=tel?`whatsapp://send?phone=${tel}&text=${encodeURIComponent(msg)}`:`whatsapp://send?text=${encodeURIComponent(msg)}`;
   waUrl=url;
   const btnCI=document.getElementById('btn-ci');
@@ -849,49 +852,6 @@ function renderResumen(){
   document.getElementById('resumen-lista').innerHTML=html||'<div style="text-align:center;color:#aaa;padding:2rem;">Sin ciclos registrados aún</div>';
 }
 
-function calcResumenCiclo(semVal){
-  const dias=dSem(semVal);
-  return E.map((p,pi)=>{
-    let totalMins=0;let diasSinUni=0;
-    dias.forEach(f=>{
-      const r=(R[f]||{})[pi];
-      if(r&&r.horas&&r.salida){totalMins+=Math.round(r.horas*60);if(!r.uniforme)diasSinUni++;}
-    });
-    const totalH=round2(totalMins/60);
-    const jornada=p.jornada||48;
-    const sueldo=p.sueldo||0;
-    const pagoH=p.pago_hora||(jornada>0?round2(sueldo/jornada):0);
-    const diffMins=totalMins-Math.round(jornada*60);
-    const extraH=diffMins>30?(typeof redondearExtras==='function'?redondearExtras(diffMins):round2(Math.floor(diffMins/30)*0.5)):0;
-    const faltaH=diffMins<0?round2(Math.abs(diffMins)/60):0;
-    const pagoExtra=round2(extraH*pagoH);
-    const descHoras=round2(faltaH*pagoH);
-    const multaUni=diasSinUni*50;
-    const total=round2(sueldo+pagoExtra-descHoras-multaUni);
-    return{nombre:p.nombre,sueldo,jornada,pagoH,totalH,extraH,faltaH,pagoExtra,descHoras,diasSinUni,multaUni,total};
-  });
-}
-
-function exportarExcelResumen(semVal){
-  const datos=calcResumenCiclo(semVal);
-  const dias=dSem(semVal);
-  const titulo=`${fF(dias[0])} al ${fF(dias[6])}`;
-  let csv=`Ciclo:,${titulo}
-
-`;
-  csv+=`Empleado,Sueldo,Jornada (h),Pago x Hora,Horas Trabajadas,Horas Extra,Horas Falta,$ Horas Extra,$ Descuento Horas,Días sin Uniforme,Descuento Uniforme,Total a Pagar
-`;
-  datos.forEach(d=>{
-    csv+=`"${d.nombre}",${d.sueldo},${d.jornada},${d.pagoH},${d.totalH},${d.extraH},${d.faltaH},${d.pagoExtra},${d.descHoras},${d.diasSinUni},${d.multaUni},${d.total}
-`;
-  });
-  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=`resumen_${semVal}.csv`;a.click();
-  URL.revokeObjectURL(url);
-}
-
 function toggleResumen(idx,semVal){
   const body=document.getElementById(`rbody-${idx}`);
   const arr=document.getElementById(`rarr-${idx}`);
@@ -901,44 +861,23 @@ function toggleResumen(idx,semVal){
   if(!isOpen){
     body.style.display='block';arr.textContent='▲';
     if(!body.innerHTML){
-      const datos=calcResumenCiclo(semVal);
       const dias=dSem(semVal);
-      let html=`<div style="margin:10px 0 8px;">
-        <button onclick="exportarExcelResumen('${semVal}')" style="background:#1a5276;color:#fff;border:none;padding:6px 14px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">⬇️ Descargar Excel</button>
-      </div>`;
-      html+=`<div style="overflow-x:auto;"><table style="font-size:12px;width:100%;border-collapse:collapse;">
-        <thead><tr>
-          <th style="text-align:left;background:#1a5276;color:#fff;padding:7px 6px;">Empleado</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">Sueldo</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">Jornada</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">$/Hora</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">H.Trabaj.</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">H.Extra</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">H.Falta</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">$H.Extra</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">Desc.Horas</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">Días s/Uni</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">Multa Uni</th>
-          <th style="background:#1a5276;color:#fff;padding:7px 4px;">TOTAL</th>
-        </tr></thead><tbody>`;
-      datos.forEach(d=>{
-        const totalColor=d.total>=d.sueldo?'#27AE60':'#E74C3C';
-        html+=`<tr>
-          <td style="padding:6px;font-weight:600;border-bottom:1px solid #F0F4F9;">${d.nombre}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;">${fmt$(d.sueldo)}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;">${d.jornada}h</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;">${fmt$(d.pagoH)}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;">${d.totalH}h</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;color:${d.extraH>0?'#27AE60':'#aaa'};">${d.extraH>0?'+'+d.extraH+'h':'0h'}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;color:${d.faltaH>0?'#E74C3C':'#aaa'};">${d.faltaH>0?'-'+d.faltaH+'h':'0h'}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;color:${d.pagoExtra>0?'#27AE60':'#aaa'};">${d.pagoExtra>0?'+'+fmt$(d.pagoExtra):'$0'}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;color:${d.descHoras>0?'#E74C3C':'#aaa'};">${d.descHoras>0?'-'+fmt$(d.descHoras):'$0'}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;color:${d.diasSinUni>0?'#E74C3C':'#aaa'};">${d.diasSinUni>0?d.diasSinUni+'d':'✅'}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;color:${d.multaUni>0?'#E74C3C':'#aaa'};">${d.multaUni>0?'-'+fmt$(d.multaUni):'$0'}</td>
-          <td style="text-align:center;padding:6px;border-bottom:1px solid #F0F4F9;font-weight:700;color:${totalColor};">${fmt$(d.total)}</td>
-        </tr>`;
+      let html='<table><thead><tr><th style="text-align:left;">Empleado</th><th>Total h</th><th>Jornada</th><th>Extras/Falta</th><th>Total a pagar</th></tr></thead><tbody>';
+      E.forEach((p,pi)=>{
+        let totalMins=0;
+        dias.forEach(f=>{const r=(R[f]||{})[pi];if(r&&r.horas)totalMins+=Math.round(r.horas*60);});
+        const totalH=round2(totalMins/60);
+        const jornada=p.jornada||48;
+        const sueldo=p.sueldo||0;
+        const pagoH=p.pago_hora||(jornada>0?round2(sueldo/jornada):0);
+        const diffH=round2(totalH-jornada);
+        const extraH=diffH>0?diffH:0;
+        const faltaH=diffH<0?Math.abs(diffH):0;
+        const total=round2(sueldo+(extraH*pagoH)-(faltaH*pagoH));
+        const diffCell=diffH>=0?`<span class="pill pill-extra">+${extraH}h</span>`:`<span class="pill pill-falta">-${faltaH}h</span>`;
+        html+=`<tr><td>${p.nombre}</td><td>${totalH}h</td><td>${jornada}h</td><td>${diffCell}</td><td style="font-weight:700;">${fmt$(total)}</td></tr>`;
       });
-      html+='</tbody></table></div>';
+      html+='</tbody></table>';
       body.innerHTML=html;
     }
   }
