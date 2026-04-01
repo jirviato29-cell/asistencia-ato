@@ -9,7 +9,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'asistenciaATO2026'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:DOtvBqeMTgQJHQjhNfAtitkdKQQpReTq@interchange.proxy.rlwy.net:27018/railway")
+DATABASE_URL = "postgresql://postgres:YOoXWsASWfITKFlsESzTzTwxokoqStHI@interchange.proxy.rlwy.net:10223/railway"
 
 EMPLEADOS_DEFAULT = [
     {"nombre":"EMPLEADO 1","tel":"","jornada":48,"sueldo":1500},
