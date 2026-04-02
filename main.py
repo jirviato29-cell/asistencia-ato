@@ -6,19 +6,28 @@ import os
 from datetime import datetime, timedelta
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2 import pool
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'asistenciaATO2026'
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:YOoXWsASWfITKFlsESzTzTwxokoqStHI@interchange.proxy.rlwy.net:10223/railway")
+
+# Pool de conexiones — reutiliza conexiones en lugar de abrir una nueva cada vez
+connection_pool = pool.ThreadedConnectionPool(2, 10, DATABASE_URL)
 
 EMPLEADOS_DEFAULT = [
     {"nombre":"EMPLEADO 1","tel":"","jornada":48,"sueldo":1500},
 ]
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    conn = connection_pool.getconn()
+    conn.cursor_factory = RealDictCursor
+    return conn
+
+def release_conn(conn):
+    connection_pool.putconn(conn)
 
 def init_db():
     conn = get_conn()
@@ -53,7 +62,8 @@ def init_db():
             cur.execute("INSERT INTO empleados (nombre, tel, jornada, sueldo, pago_hora) VALUES (%s,%s,%s,%s,%s)",
                        (e["nombre"], e["tel"], e["jornada"], e["sueldo"], ph))
     conn.commit()
-    cur.close(); conn.close()
+    cur.close()
+    release_conn(conn)
     print("DB Asistencia OK")
 
 def get_empleados_db():
@@ -62,7 +72,8 @@ def get_empleados_db():
         cur = conn.cursor()
         cur.execute("SELECT nombre, tel, jornada, sueldo, pago_hora FROM empleados ORDER BY id")
         rows = cur.fetchall()
-        cur.close(); conn.close()
+        cur.close()
+        release_conn(conn)
         return [{"nombre":r["nombre"],"tel":r["tel"] or "","jornada":float(r["jornada"] or 48),
                  "sueldo":float(r["sueldo"] or 0),"pago_hora":float(r["pago_hora"] or 0)} for r in rows]
     except Exception as e:
@@ -80,7 +91,8 @@ def save_empleados_db(data):
         cur.execute("INSERT INTO empleados (nombre, tel, jornada, sueldo, pago_hora) VALUES (%s,%s,%s,%s,%s)",
                    (e.get("nombre",""), e.get("tel",""), j, s, ph))
     conn.commit()
-    cur.close(); conn.close()
+    cur.close()
+    release_conn(conn)
 
 def get_registros_db():
     try:
@@ -88,7 +100,8 @@ def get_registros_db():
         cur = conn.cursor()
         cur.execute("SELECT fecha, idx, entrada, salida, horas, uniforme FROM registros")
         rows = cur.fetchall()
-        cur.close(); conn.close()
+        cur.close()
+        release_conn(conn)
         result = {}
         for r in rows:
             f, i = str(r["fecha"]), str(r["idx"])
@@ -104,6 +117,24 @@ def get_registros_db():
         print(f"Error get_registros: {e}")
         return {}
 
+def get_registro_one(fecha, idx):
+    """Obtiene solo un registro — mucho más rápido que cargar todos"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT entrada, salida, horas, uniforme FROM registros WHERE fecha=%s AND idx=%s",
+                    (str(fecha), str(idx)))
+        row = cur.fetchone()
+        cur.close()
+        release_conn(conn)
+        if row:
+            return {"entrada": row["entrada"], "salida": row["salida"],
+                    "horas": row["horas"], "uniforme": bool(row["uniforme"])}
+        return {}
+    except Exception as e:
+        print(f"Error get_registro_one: {e}")
+        return {}
+
 def upsert_registro(fecha, idx, entrada, salida, horas, uniforme):
     conn = get_conn()
     cur = conn.cursor()
@@ -115,19 +146,18 @@ def upsert_registro(fecha, idx, entrada, salida, horas, uniforme):
             horas=EXCLUDED.horas, uniforme=EXCLUDED.uniforme
     """, (str(fecha), str(idx), entrada or None, salida or None, horas, uniforme))
     conn.commit()
-    cur.close(); conn.close()
+    cur.close()
+    release_conn(conn)
 
 def delete_registro(fecha, idx):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM registros WHERE fecha=%s AND idx=%s", (str(fecha), str(idx)))
     conn.commit()
-    cur.close(); conn.close()
+    cur.close()
+    release_conn(conn)
 
 def hoy(): return datetime.now().strftime("%Y-%m-%d")
-def sumar(h, mins):
-    hh, mm = map(int, h.split(":"))
-    return (datetime(2000,1,1,hh,mm)+timedelta(minutes=mins)).strftime("%H:%M")
 
 try: init_db()
 except Exception as e: print(f"Error init_db: {e}")
@@ -161,9 +191,10 @@ def checkin():
 def checkout():
     d = request.json
     idx = str(d["idx"]); fecha = d.get("fecha", hoy())
-    reg = get_registros_db()
-    entrada = (reg.get(fecha, {}).get(idx, {}) or {}).get("entrada", "")
-    uniforme = (reg.get(fecha, {}).get(idx, {}) or {}).get("uniforme", True)
+    # Consulta solo el registro de este empleado, no todos
+    reg = get_registro_one(fecha, idx)
+    entrada = reg.get("entrada", "")
+    uniforme = reg.get("uniforme", True)
     upsert_registro(fecha, idx, entrada, d["salida"], d["horas"], uniforme)
     socketio.emit("checkout_nuevo", {"idx": idx, "fecha": fecha})
     return jsonify({"ok": True})
@@ -181,8 +212,9 @@ def editar():
     idx = str(d["idx"]); fo = d["fecha_orig"]; fn = d["fecha_nueva"]
     entrada = d["entrada"]; salida = d.get("salida", "")
     horas = None
-    reg = get_registros_db()
-    uniforme = (reg.get(fo, {}).get(idx, {}) or {}).get("uniforme", True)
+    # Consulta solo el registro específico
+    reg = get_registro_one(fo, idx)
+    uniforme = reg.get("uniforme", True)
     if salida and entrada:
         try:
             hh1,mm1 = map(int, entrada.split(":")); hh2,mm2 = map(int, salida.split(":"))
