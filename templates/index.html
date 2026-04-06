@@ -448,7 +448,7 @@ function actuPreviewCI(){
     ?`✅ Gracias por cumplir con tu uniforme, ¡sigue así!`
     :`⚠️ Hoy no traes uniforme. Te invitamos a traer tu uniforme diario, es parte de nuestra imagen.`;
   const msg=`Buenos días ${p.nombre},\n\nTu asistencia ha sido registrada a las ${hora}.\n\n${uniMsg}\n\n¡Que tengas un excelente día!`;
-  const url=tel?`whatsapp://send?phone=${tel}&text=${encodeURIComponent(msg)}`:`whatsapp://send?text=${encodeURIComponent(msg)}`;
+  const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`:`https://wa.me/?text=${encodeURIComponent(msg)}`;
   waUrl=url;
   const btnCI=document.getElementById('btn-ci');
   if(btnCI){btnCI.style.display='block';btnCI.disabled=false;btnCI.textContent=fecha===HOY?'Registrar Asistencia':'Guardar Asistencia';}
@@ -632,7 +632,7 @@ function renderFalt(){
   document.getElementById('btn-todos').style.display=fCI.length?'block':'none';
   document.getElementById('fl-ci').innerHTML=fCI.length?fCI.map(({p})=>{
     const tel=p.tel?'52'+p.tel.replace(/\D/g,'').replace(/^52/,''):'';
-    const url=tel?`whatsapp://send?phone=${tel}&text=${encodeURIComponent(msgR(p.nombre))}`:`whatsapp://send?text=${encodeURIComponent(msgR(p.nombre))}`;
+    const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(msgR(p.nombre))}`:`https://wa.me/?text=${encodeURIComponent(msgR(p.nombre))}`;
     return`<div class="item" style="background:#fff;border-radius:7px;margin-bottom:3px;padding:7px 9px;"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span><span style="font-size:10px;color:#aaa;margin-right:6px;">${p.tel||''}</span><a href="${url}" class="wa-btn">WA</a></div>`;
   }).join(''):'<div style="padding:8px;text-align:center;color:#aaa;font-size:12px;">Todos tienen entrada ✅</div>';
   document.getElementById('ft-co').textContent=`Sin salida — ${fF(f)} (${fCO.length})`;
@@ -668,7 +668,7 @@ function abrirTodosWA(){
     if(n>=faltantes.length)return;
     const {p}=faltantes[n];
     const tel=p.tel?'52'+p.tel.replace(/\D/g,'').replace(/^52/,''):'';
-    const url=tel?`whatsapp://send?phone=${tel}&text=${encodeURIComponent(msgR(p.nombre))}`:`whatsapp://send?text=${encodeURIComponent(msgR(p.nombre))}`;
+    const url=tel?`https://wa.me/${tel}?text=${encodeURIComponent(msgR(p.nombre))}`:`https://wa.me/?text=${encodeURIComponent(msgR(p.nombre))}`;
     location.href=url;n++;
     if(n<faltantes.length){if(confirm(`Enviado a ${p.nombre}. ¿Continuar con el siguiente (${n+1}/${faltantes.length})?`)){setTimeout(siguiente,800);}}
     else{alert('Recordatorios enviados.');}
