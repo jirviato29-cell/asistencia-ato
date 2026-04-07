@@ -482,6 +482,7 @@ async function marcarCI(){
     conf.innerHTML=`<span style="color:#27AE60;">✅ ${nombreP} registrado — ${fechaP} · ${uniTxt}</span>`;
   }
   setTimeout(()=>{conf.style.display='none';conf.innerHTML='';},8000);
+  cargarTodo();
 }
 
 function onFCO(){
@@ -515,7 +516,7 @@ async function regCO(){
   div.style.display='block';
   mostrarConf('conf-co',`Salida: ${p.nombre} — ${tStr}`);
   limpiarCO();
-  await cargarTodo();
+  cargarTodo();
 }
 
 function round2(n){return Math.round(n*100)/100;}
