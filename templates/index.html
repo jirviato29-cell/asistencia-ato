@@ -468,8 +468,6 @@ async function marcarCI(){
   limpiarCI();
   setUni(true);
   pIdx=null;pHora=null;pFecha=null;
-  await cargarTodo();
-  actStats();renderHoy();filtrarE('co');
   const conf=document.getElementById('conf-ci');
   conf.style.display='block';
   const uniTxt=uniVal?'✅ Con uniforme':'❌ Sin uniforme';
@@ -933,7 +931,7 @@ async function cargarEmps(){
 async function cargarTodo(){
   const r=await fetch('/api/registros/todos');
   R=await r.json();
-  actStats();actStatsCO();renderHoy();renderFalt();renderFaltCO();renderListaCO();
+  actStats();actStatsCO();renderHoy();
   filtrarE('ci');filtrarE('co');
 }
 
