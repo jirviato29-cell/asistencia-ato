@@ -438,7 +438,7 @@ function limpiarCO(){
 function onFCI(){
   actuPreviewCI();
   document.getElementById('fs-ci').value=document.getElementById('fecha-ci').value;
-  actStats();renderHoy();
+  actStats();renderHoy();renderCuadrosCI();
 }
 
 function actuPreviewCI(){
@@ -657,7 +657,11 @@ function renderFaltCO(){
   document.getElementById('fco-sub').textContent=`${fCO.length} con entrada sin salida`;
   document.getElementById('fco-box').className=fCO.length?'falt-box':'falt-box ok';
   document.getElementById('fco-lista').innerHTML=fCO.map(({p,i})=>`<div class="item"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span><span class="pill pill-ci" style="font-size:10px;">${(reg[i]||{}).entrada||''}</span></div>`).join('')||'<div style="padding:6px;text-align:center;color:#aaa;font-size:12px;">Todos ✅</div>';
-  // Actualizar cuadros en pestaña checkin también
+}
+
+function renderCuadrosCI(){
+  const f=document.getElementById('fs-ci')?document.getElementById('fs-ci').value||HOY:HOY;
+  const reg=R[f]||{};
   const fCI2=E.map((p,i)=>({p,i})).filter(({i})=>!reg[i]);
   const fCO2=E.map((p,i)=>({p,i})).filter(({i})=>reg[i]&&!reg[i].salida);
   document.getElementById('ci-fci-tit').textContent=`Sin entrada (${fCI2.length})`;
@@ -949,14 +953,14 @@ async function cargarTodo(){
   const fechas=[...new Set([HOY,fCI,fCO])];
   const resultados=await Promise.all(fechas.map(f=>fetch('/api/registros/fecha?fecha='+f).then(r=>r.json())));
   resultados.forEach(d=>Object.assign(R,d));
-  actStats();actStatsCO();renderHoy();renderFaltCO();renderListaCO();
+  actStats();actStatsCO();renderHoy();renderFaltCO();renderListaCO();renderCuadrosCI();
   filtrarE('ci');filtrarE('co');
 }
 
 async function cargarTodoCompleto(){
   const r=await fetch('/api/registros/todos');
   R=await r.json();
-  actStats();actStatsCO();renderHoy();renderFaltCO();renderListaCO();
+  actStats();actStatsCO();renderHoy();renderFaltCO();renderListaCO();renderCuadrosCI();
   filtrarE('ci');filtrarE('co');
 }
 
