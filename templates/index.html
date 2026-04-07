@@ -175,6 +175,10 @@ tr:hover td{background:#F5F8FC;}
     <div class="stat"><div class="stat-n" id="s-pend" style="color:#F39C12">0</div><div class="stat-l">Sin entrada</div></div>
     <div class="stat"><div class="stat-n" id="s-tot" style="color:#1a5276">0</div><div class="stat-l">Total</div></div>
   </div>
+  <div class="falt-grid">
+    <div class="falt-box" id="ci-fci-box"><h3 id="ci-fci-tit">Sin entrada</h3><div class="sub2" id="ci-fci-sub"></div><div class="lista" id="ci-fci-lista" style="max-height:180px;"></div></div>
+    <div class="falt-box" id="ci-fco-box"><h3 id="ci-fco-tit">Sin salida</h3><div class="sub2" id="ci-fco-sub"></div><div class="lista" id="ci-fco-lista" style="max-height:180px;"></div></div>
+  </div>
   <div class="card">
     <h2>Registro del día <span id="lbl-f-reg" style="font-weight:400;font-size:12px;color:#888;"></span></h2>
     <input type="text" class="search" placeholder="Buscar empleado..." oninput="filtrarHoy(this.value)">
@@ -478,7 +482,6 @@ async function marcarCI(){
     conf.innerHTML=`<span style="color:#27AE60;">✅ ${nombreP} registrado — ${fechaP} · ${uniTxt}</span>`;
   }
   setTimeout(()=>{conf.style.display='none';conf.innerHTML='';},8000);
-  cargarTodo();
 }
 
 function onFCO(){
@@ -512,7 +515,7 @@ async function regCO(){
   div.style.display='block';
   mostrarConf('conf-co',`Salida: ${p.nombre} — ${tStr}`);
   limpiarCO();
-  cargarTodo();
+  await cargarTodo();
 }
 
 function round2(n){return Math.round(n*100)/100;}
@@ -654,6 +657,17 @@ function renderFaltCO(){
   document.getElementById('fco-sub').textContent=`${fCO.length} con entrada sin salida`;
   document.getElementById('fco-box').className=fCO.length?'falt-box':'falt-box ok';
   document.getElementById('fco-lista').innerHTML=fCO.map(({p,i})=>`<div class="item"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span><span class="pill pill-ci" style="font-size:10px;">${(reg[i]||{}).entrada||''}</span></div>`).join('')||'<div style="padding:6px;text-align:center;color:#aaa;font-size:12px;">Todos ✅</div>';
+  // Actualizar cuadros en pestaña checkin también
+  const fCI2=E.map((p,i)=>({p,i})).filter(({i})=>!reg[i]);
+  const fCO2=E.map((p,i)=>({p,i})).filter(({i})=>reg[i]&&!reg[i].salida);
+  document.getElementById('ci-fci-tit').textContent=`Sin entrada (${fCI2.length})`;
+  document.getElementById('ci-fci-sub').textContent=`${fCI2.length} sin registrar`;
+  document.getElementById('ci-fci-box').className=fCI2.length?'falt-box':'falt-box ok';
+  document.getElementById('ci-fci-lista').innerHTML=fCI2.map(({p})=>`<div class="item"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span></div>`).join('')||'<div style="padding:6px;text-align:center;color:#aaa;font-size:12px;">Todos ✅</div>';
+  document.getElementById('ci-fco-tit').textContent=`Sin salida (${fCO2.length})`;
+  document.getElementById('ci-fco-sub').textContent=`${fCO2.length} con entrada sin salida`;
+  document.getElementById('ci-fco-box').className=fCO2.length?'falt-box':'falt-box ok';
+  document.getElementById('ci-fco-lista').innerHTML=fCO2.map(({p,i})=>`<div class="item"><div class="dot dot-y"></div><span class="nm">${p.nombre}</span><span class="pill pill-ci" style="font-size:10px;">${(reg[i]||{}).entrada||''}</span></div>`).join('')||'<div style="padding:6px;text-align:center;color:#aaa;font-size:12px;">Todos ✅</div>';
 }
 
 function abrirTodosWA(){
@@ -931,7 +945,7 @@ async function cargarEmps(){
 async function cargarTodo(){
   const r=await fetch('/api/registros/todos');
   R=await r.json();
-  actStats();actStatsCO();renderHoy();
+  actStats();actStatsCO();renderHoy();renderFaltCO();renderListaCO();
   filtrarE('ci');filtrarE('co');
 }
 
