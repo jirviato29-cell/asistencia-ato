@@ -482,7 +482,6 @@ async function marcarCI(){
     conf.innerHTML=`<span style="color:#27AE60;">✅ ${nombreP} registrado — ${fechaP} · ${uniTxt}</span>`;
   }
   setTimeout(()=>{conf.style.display='none';conf.innerHTML='';},8000);
-  cargarTodo();
 }
 
 function onFCO(){
@@ -516,7 +515,7 @@ async function regCO(){
   div.style.display='block';
   mostrarConf('conf-co',`Salida: ${p.nombre} — ${tStr}`);
   limpiarCO();
-  cargarTodo();
+  await cargarTodo();
 }
 
 function round2(n){return Math.round(n*100)/100;}
@@ -944,6 +943,17 @@ async function cargarEmps(){
 }
 
 async function cargarTodo(){
+  // Carga rápida: solo el día visible + el día de hoy si es diferente
+  const fCI=document.getElementById('fs-ci')?document.getElementById('fs-ci').value||HOY:HOY;
+  const fCO=document.getElementById('fs-co')?document.getElementById('fs-co').value||HOY:HOY;
+  const fechas=[...new Set([HOY,fCI,fCO])];
+  const resultados=await Promise.all(fechas.map(f=>fetch('/api/registros/fecha?fecha='+f).then(r=>r.json())));
+  resultados.forEach(d=>Object.assign(R,d));
+  actStats();actStatsCO();renderHoy();renderFaltCO();renderListaCO();
+  filtrarE('ci');filtrarE('co');
+}
+
+async function cargarTodoCompleto(){
   const r=await fetch('/api/registros/todos');
   R=await r.json();
   actStats();actStatsCO();renderHoy();renderFaltCO();renderListaCO();
@@ -956,7 +966,7 @@ function mostrarConf(id,msg){
   setTimeout(()=>c.style.display='none',4000);
 }
 
-(async()=>{await cargarEmps();await cargarTodo();})();
+(async()=>{await cargarEmps();await cargarTodoCompleto();})();
 </script>
 </body>
 </html>
