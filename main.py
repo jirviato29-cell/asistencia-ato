@@ -177,6 +177,29 @@ def save_empleados():
 @app.route("/api/registros/todos", methods=["GET"])
 def get_todos(): return jsonify(get_registros_db())
 
+@app.route("/api/registros/fecha", methods=["GET"])
+def get_por_fecha():
+    fecha = request.args.get("fecha", hoy())
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT fecha, idx, entrada, salida, horas, uniforme FROM registros WHERE fecha=%s", (fecha,))
+        rows = cur.fetchall()
+        cur.close()
+        release_conn(conn)
+        result = {fecha: {}}
+        for r in rows:
+            result[fecha][str(r["idx"])] = {
+                "entrada": r["entrada"] or None,
+                "salida": r["salida"] or None,
+                "horas": float(r["horas"]) if r["horas"] is not None else None,
+                "uniforme": bool(r["uniforme"])
+            }
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error get_por_fecha: {e}")
+        return jsonify({})
+
 @app.route("/api/checkin", methods=["POST"])
 def checkin():
     d = request.json
