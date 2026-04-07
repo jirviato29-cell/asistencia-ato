@@ -1,5 +1,3 @@
-from gevent import monkey
-monkey.patch_all()
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO
 import os
@@ -10,7 +8,7 @@ from psycopg2 import pool
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'asistenciaATO2026'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:YOoXWsASWfITKFlsESzTzTwxokoqStHI@interchange.proxy.rlwy.net:10223/railway")
 
