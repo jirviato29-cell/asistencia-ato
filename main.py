@@ -8,7 +8,7 @@ from psycopg2 import pool
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'asistenciaATO2026'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:YOoXWsASWfITKFlsESzTzTwxokoqStHI@interchange.proxy.rlwy.net:10223/railway")
 
