@@ -467,14 +467,14 @@ async function marcarCI(){
   const fechaP=pFecha;
   const urlWA=waUrl;
   waUrl='';
+  const uniP=uniVal;
   await fetch('/api/checkin',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({idx:pIdx,hora:pHora,fecha:pFecha,uniforme:uniVal})});
   limpiarCI();
-  setUni(true);
   pIdx=null;pHora=null;pFecha=null;
   const conf=document.getElementById('conf-ci');
   conf.style.display='block';
-  const uniTxt=uniVal?'✅ Con uniforme':'❌ Sin uniforme';
+  const uniTxt=uniP?'✅ Con uniforme':'❌ Sin uniforme';
   if(urlWA && fechaP===HOY){
     location.href=urlWA;
     conf.innerHTML=`<span style="color:#27AE60;">✅ ${nombreP} registrado · ${uniTxt} — Mensaje enviado</span>`;
