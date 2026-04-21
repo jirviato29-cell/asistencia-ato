@@ -86,12 +86,17 @@ def save_empleados_db(data):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM empleados")
+    seen = set()
     for e in data:
+        nombre = e.get("nombre", "").strip()
+        if not nombre or nombre in seen:
+            continue
+        seen.add(nombre)
         j = float(e.get("jornada", 48) or 48)
         s = float(e.get("sueldo", 0) or 0)
         ph = round(s/j, 2) if j > 0 else 0
         cur.execute("INSERT INTO empleados (nombre, tel, jornada, sueldo, pago_hora) VALUES (%s,%s,%s,%s,%s)",
-                   (e.get("nombre",""), e.get("tel",""), j, s, ph))
+                   (nombre, e.get("tel",""), j, s, ph))
     conn.commit()
     cur.close()
     release_conn(conn)
