@@ -30,38 +30,42 @@ def release_conn(conn):
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS empleados (
-            id SERIAL PRIMARY KEY,
-            nombre TEXT NOT NULL,
-            tel TEXT DEFAULT '',
-            jornada FLOAT DEFAULT 48,
-            sueldo FLOAT DEFAULT 0,
-            pago_hora FLOAT DEFAULT 0
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS registros (
-            id SERIAL PRIMARY KEY,
-            fecha TEXT NOT NULL,
-            idx TEXT NOT NULL,
-            entrada TEXT,
-            salida TEXT,
-            horas FLOAT,
-            uniforme BOOLEAN DEFAULT TRUE,
-            UNIQUE(fecha, idx)
-        )
-    """)
-    cur.execute("SELECT COUNT(*) as cnt FROM empleados")
-    cnt = cur.fetchone()["cnt"]
-    if cnt == 0:
-        for e in EMPLEADOS_DEFAULT:
-            ph = round(e["sueldo"]/e["jornada"], 2) if e["jornada"] > 0 else 0
-            cur.execute("INSERT INTO empleados (nombre, tel, jornada, sueldo, pago_hora) VALUES (%s,%s,%s,%s,%s)",
-                       (e["nombre"], e["tel"], e["jornada"], e["sueldo"], ph))
-    conn.commit()
-    cur.close()
-    release_conn(conn)
+    cur.execute("SELECT pg_advisory_lock(12345)")
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS empleados (
+                id SERIAL PRIMARY KEY,
+                nombre TEXT NOT NULL,
+                tel TEXT DEFAULT '',
+                jornada FLOAT DEFAULT 48,
+                sueldo FLOAT DEFAULT 0,
+                pago_hora FLOAT DEFAULT 0
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS registros (
+                id SERIAL PRIMARY KEY,
+                fecha TEXT NOT NULL,
+                idx TEXT NOT NULL,
+                entrada TEXT,
+                salida TEXT,
+                horas FLOAT,
+                uniforme BOOLEAN DEFAULT TRUE,
+                UNIQUE(fecha, idx)
+            )
+        """)
+        cur.execute("SELECT COUNT(*) as cnt FROM empleados")
+        cnt = cur.fetchone()["cnt"]
+        if cnt == 0:
+            for e in EMPLEADOS_DEFAULT:
+                ph = round(e["sueldo"]/e["jornada"], 2) if e["jornada"] > 0 else 0
+                cur.execute("INSERT INTO empleados (nombre, tel, jornada, sueldo, pago_hora) VALUES (%s,%s,%s,%s,%s)",
+                           (e["nombre"], e["tel"], e["jornada"], e["sueldo"], ph))
+        conn.commit()
+    finally:
+        cur.execute("SELECT pg_advisory_unlock(12345)")
+        cur.close()
+        release_conn(conn)
     print("DB Asistencia OK")
 
 def get_empleados_db():

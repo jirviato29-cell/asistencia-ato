@@ -496,9 +496,11 @@ async function regCO(){
   const hSal=document.getElementById('hora-co').value;
   const fCO=document.getElementById('fecha-co').value;
   if(!hSal||!fCO)return;
+  const btnCO=document.getElementById('btn-co');
+  if(btnCO)btnCO.disabled=true;
   const p=E[idxCO];
   const rF=(R[fCO]||{})[idxCO];
-  if(!rF){alert('Sin entrada registrada en esa fecha');return;}
+  if(!rF){if(btnCO)btnCO.disabled=false;alert('Sin entrada registrada en esa fecha');return;}
   const mins=dMin(rF.entrada,hSal);
   const horas=round2(mins/60);
   // Calcular extras/faltas por día (jornada diaria = jornada semanal / dias_semana)
